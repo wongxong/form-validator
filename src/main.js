@@ -98,7 +98,7 @@ export class Validator {
 					el: fieldEl,
 					type: "blur",
 					handler: this.validate.bind(this, prop, null)
-				});	
+				});
 			} else {
 				this.__handlers.push({
 					el: fieldEl,
@@ -118,13 +118,19 @@ export class Validator {
 		if (getType(prop) === "string") {
 			this.validateField(prop, callback);
 		} else {
-			callback = prop;
-			prop = null;
+			let fieldsKeys;
 
+			if (getType(prop) === "array") {
+				fieldsKeys = prop;
+			} else {
+				fieldsKeys = Object.keys(this.fields);
+				callback = prop;
+				prop = null;
+			}
+			
 			let count = 0;
 			let noError = true;
-			let fieldsKeys = Object.keys(this.fields);
-
+			
 			fieldsKeys.forEach(prop => {
 				this.validateField(prop, valid => {
 					count++;
@@ -145,13 +151,14 @@ export class Validator {
 		if (prop && this.fields[prop]) {
 			const propValue = getValue(this.fields[prop].fieldEl);
 			
-			this.rules[prop].every(rule => {
-				let noError = true;
+			let hasError = false;
+			let currentRule;
 
+			this.rules[prop].some(rule => {
 				if (rule.validator) {
 					rule.validator(rule, propValue, err => {
 						if (err && err instanceof Error) {
-							noError = false;
+							hasError = true;
 
 							if (!rule.message) {
 								rule.message = err.message;
@@ -159,25 +166,27 @@ export class Validator {
 						}
 					});
 				} else if (rule.required) {
-					noError = propValue !== "";
+					hasError = propValue === "";
 				} else if (rule.type) {
 					if (rule.type === "number") {
-						noError = isNumeric(propValue);
+						hasError = !isNumeric(propValue);
 					} else {
-						noError = getType(propValue) === rule.type;
+						hasError = getType(propValue) !== rule.type;
 					}
 				}
 
-				if (noError) {
-					this.hideErrorMsg(prop);
-				} else {
-					this.showErrorMsg(prop, rule.message);
-				}
+				currentRule = rule;
 
-				callback && callback(noError);
-
-				return noError;
+				return hasError;
 			});
+
+			if (hasError) {
+				this.showErrorMsg(prop, currentRule.message);
+			} else {
+				this.hideErrorMsg(prop);
+			}
+
+			callback && callback(!hasError);
 		}
 	}
 
